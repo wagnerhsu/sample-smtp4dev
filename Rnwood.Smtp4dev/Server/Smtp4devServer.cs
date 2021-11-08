@@ -15,6 +15,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
 using Rnwood.Smtp4dev.Data;
 using Serilog;
+using Microsoft.Extensions.Configuration;
 
 namespace Rnwood.Smtp4dev.Server
 {
@@ -24,7 +25,8 @@ namespace Rnwood.Smtp4dev.Server
 
         public Smtp4devServer(IServiceScopeFactory serviceScopeFactory, IOptionsMonitor<ServerOptions> serverOptions,
             IOptionsMonitor<RelayOptions> relayOptions, NotificationsHub notificationsHub, Func<RelayOptions, SmtpClient> relaySmtpClientFactory,
-            ITaskQueue taskQueue)
+            ITaskQueue taskQueue,
+			IConfiguration configuration)
         {
             this.notificationsHub = notificationsHub;
             this.serverOptions = serverOptions;
@@ -32,7 +34,7 @@ namespace Rnwood.Smtp4dev.Server
             this.serviceScopeFactory = serviceScopeFactory;
             this.relaySmtpClientFactory = relaySmtpClientFactory;
             this.taskQueue = taskQueue;
-
+            this._configuration = configuration;
             DoCleanup();
 
             IDisposable eventHandler = null;
@@ -329,6 +331,12 @@ namespace Rnwood.Smtp4dev.Server
                 recipients = overrideRecipients;
             }
 
+            if (recipients.Length == 0)
+            {
+                List<MailboxAddress> newRecipients = new List<MailboxAddress>();
+                newRecipients.Add(MailboxAddress.Parse(message.To));
+                recipients = newRecipients.ToArray();
+            }
             foreach (MailboxAddress recipient in recipients)
             {
                 try
@@ -342,6 +350,11 @@ namespace Rnwood.Smtp4dev.Server
                         !string.IsNullOrEmpty(relayOptions.CurrentValue.SenderAddress)
                             ? relayOptions.CurrentValue.SenderAddress
                             : apiMsg.From);
+                    var fixedSender = (string)_configuration["SenderEmail"];
+                    if (!string.IsNullOrEmpty(fixedSender))
+                    {
+                        sender = MailboxAddress.Parse(fixedSender);
+                    }
                     relaySmtpClient.Send(newEmail, sender, new[] { recipient });
                     result.RelayRecipients.Add(new RelayRecipientResult() { Email = recipient.Address, RelayDate = DateTime.UtcNow });
                 }
@@ -369,6 +382,7 @@ namespace Rnwood.Smtp4dev.Server
 
 
         private readonly ITaskQueue taskQueue;
+        private readonly IConfiguration _configuration;
         private DefaultServer smtpServer;
         private Func<RelayOptions, SmtpClient> relaySmtpClientFactory;
         private NotificationsHub notificationsHub;
