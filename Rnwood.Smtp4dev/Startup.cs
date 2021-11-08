@@ -1,23 +1,20 @@
-using System;
-using System.IO;
-using System.Net;
+using MailKit.Net.Smtp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Rewrite;
+using Microsoft.AspNetCore.SpaServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
-using Rnwood.Smtp4dev.DbModel;
+using Microsoft.Extensions.Hosting;
+using Rnwood.Smtp4dev.Data;
 using Rnwood.Smtp4dev.Hubs;
 using Rnwood.Smtp4dev.Server;
-using VueCliMiddleware;
-using Microsoft.Extensions.Hosting;
-using Microsoft.AspNetCore.SpaServices;
-using MailKit.Net.Smtp;
-using Microsoft.AspNetCore.Rewrite;
-using Rnwood.Smtp4dev.Data;
+using Rnwood.Smtp4dev.Service;
 using Serilog;
+using System;
+using System.IO;
+using VueCliMiddleware;
 
 namespace Rnwood.Smtp4dev
 {
@@ -53,7 +50,7 @@ namespace Rnwood.Smtp4dev
                         File.Delete(serverOptions.Database);
                     }
 
-                    Log.Logger.Information("Using Sqlite database at {dbLocation}" ,Path.GetFullPath(serverOptions.Database));
+                    Log.Logger.Information("Using Sqlite database at {dbLocation}", Path.GetFullPath(serverOptions.Database));
                     opt.UseSqlite($"Data Source='{serverOptions.Database}'");
                 }
             }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
@@ -62,7 +59,7 @@ namespace Rnwood.Smtp4dev
             services.AddSingleton<ImapServer>();
             services.AddScoped<IMessagesRepository, MessagesRepository>();
             services.AddSingleton<ITaskQueue, TaskQueue>();
-
+            services.AddSingleton<IHostingEnvironmentHelper, HostingEnvironmentHelper>();
             services.AddSingleton<Func<RelayOptions, SmtpClient>>((relayOptions) =>
             {
                 if (!relayOptions.IsEnabled)
@@ -81,7 +78,6 @@ namespace Rnwood.Smtp4dev
                 return result;
             });
 
-
             services.AddSignalR();
             services.AddSingleton<NotificationsHub>();
 
@@ -90,7 +86,6 @@ namespace Rnwood.Smtp4dev
             services.AddSpaStaticFiles(o => o.RootPath = "ClientApp");
 
         }
-
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
